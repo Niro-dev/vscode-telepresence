@@ -1,0 +1,191 @@
+{
+  "name": "telepresence-ext",
+  "displayName": "Telepresence",
+  "description": "Manage Telepresence connections and intercepts for Kubernetes development",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "telepresence.openDashboard",
+        "title": "Telepresence: Open Dashboard",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "telepresence.connect",
+        "title": "Telepresence: Connect",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "telepresence.disconnect",
+        "title": "Telepresence: Disconnect",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "telepresence.createIntercept",
+        "title": "Telepresence: Create Intercept",
+        "icon": "$(add)"
+      },
+      {
+        "command": "telepresence.listIntercepts",
+        "title": "Telepresence: List Intercepts"
+      },
+      {
+        "command": "telepresence.removeIntercept",
+        "title": "Telepresence: Remove Intercept",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "telepresence.showInterceptDetails",
+        "title": "Telepresence: Show Intercept Details"
+      },
+      {
+        "command": "telepresence.status",
+        "title": "Telepresence: Show Status"
+      },
+      {
+        "command": "telepresence.refreshIntercepts",
+        "title": "Telepresence: Refresh Intercepts",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "telepresence.refreshStatus",
+        "title": "Telepresence: Refresh Status",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "telepresence.debugStatus",
+        "title": "Telepresence: Debug Status Output"
+      },
+      {
+        "command": "telepresence.connectToNamespace",
+        "title": "Telepresence: Connect to Namespace"
+      },
+      {
+        "command": "telepresence.openSettingsFile",
+        "title": "Telepresence: Open Service Overrides Settings"
+      },
+      {
+        "command": "telepresence.openSettings",
+        "title": "Telepresence: Open Settings",
+        "icon": "$(settings-gear)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "telepresence",
+          "title": "Telepresence",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "telepresence": [
+        {
+          "id": "telepresenceStatusView",
+          "name": "Connection"
+        },
+        {
+          "id": "telepresenceInterceptsView",
+          "name": "Intercepts"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "telepresence.openDashboard",
+          "when": "view == telepresenceStatusView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "telepresence.openSettings",
+          "when": "view == telepresenceStatusView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "telepresence.refreshStatus",
+          "when": "view == telepresenceStatusView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "telepresence.createIntercept",
+          "when": "view == telepresenceInterceptsView",
+          "group": "navigation"
+        },
+        {
+          "command": "telepresence.refreshIntercepts",
+          "when": "view == telepresenceInterceptsView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "telepresence.removeIntercept",
+          "when": "view == telepresenceInterceptsView && viewItem == intercept",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Telepresence",
+      "properties": {
+        "telepresence.statusPollingInterval": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "maximum": 60,
+          "description": "Interval in seconds to check Telepresence connection status (2-60 seconds)"
+        },
+        "telepresence.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh connection status in the background"
+        },
+        "telepresence.managerNamespace": {
+          "type": "string",
+          "default": "",
+          "description": "Namespace where the Traffic Manager is installed (e.g., 'telepresence'). Leave empty for auto-detection."
+        },
+        "telepresence.httpHeaderName": {
+          "type": "string",
+          "default": "x-telepresence-intercept",
+          "description": "HTTP header name for personal intercepts"
+        },
+        "telepresence.httpHeaderDefaultValue": {
+          "type": "string",
+          "default": "",
+          "description": "Default value for HTTP header (used for all intercepts unless overridden per-service)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {}
+}
+
