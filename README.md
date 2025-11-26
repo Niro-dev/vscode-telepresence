@@ -244,14 +244,3 @@ npm run watch
 ## 📝 License
 
 MIT
-
----
-
-## 🙏 Acknowledgments
-
-- [Telepresence](https://www.telepresence.io/) by Ambassador Labs
-- VS Code Extension API team
-
----
-
-*Made with ❤️ for Kubernetes developers*
