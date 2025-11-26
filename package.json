@@ -3,6 +3,26 @@
   "displayName": "Telepresence",
   "description": "Manage Telepresence connections and intercepts for Kubernetes development",
   "version": "0.0.1",
+  "publisher": "YOUR_PUBLISHER_NAME",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Niro-dev/vscode-telepresence.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Niro-dev/vscode-telepresence/issues"
+  },
+  "homepage": "https://github.com/Niro-dev/vscode-telepresence#readme",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "keywords": [
+    "telepresence",
+    "kubernetes",
+    "k8s",
+    "development",
+    "intercept",
+    "remote",
+    "cloud"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -186,6 +206,7 @@
     "eslint": "^8.54.0",
     "typescript": "^5.3.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0"
+  }
 }
-

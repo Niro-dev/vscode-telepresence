@@ -43,7 +43,8 @@ A VS Code/Cursor extension for managing [Telepresence](https://www.telepresence.
 
 - **Language:** TypeScript
 - **Framework:** VS Code Extension API
-- **CLI Integration:** Telepresence CLI, kubectl
+- **CLI Integration:** Telepresence CLI
+- **Kubernetes API:** @kubernetes/client-node (official Kubernetes JavaScript client)
 - **UI:** VS Code TreeDataProvider, WebView API
 
 ---
@@ -57,6 +58,7 @@ telepresence-ext/
 │   ├── logger.ts             # Logging utility
 │   ├── extension.ts          # Main entry point
 │   ├── telepresenceService.ts # Core Telepresence CLI wrapper
+│   ├── kubernetesService.ts  # Kubernetes API client wrapper
 │   ├── settingsManager.ts    # Settings and configuration
 │   └── views/
 │       ├── interceptsProvider.ts  # Intercepts tree view
@@ -104,15 +106,19 @@ telepresence-ext/
 │  │   Service    │  │   Manager    │  │            │            │
 │  └──────┬───────┘  └──────────────┘  └────────────┘            │
 │         │                                                        │
+│         ├─────────────────────────────────┐                     │
+│  ┌──────▼───────┐                  ┌──────▼───────┐            │
+│  │  Kubernetes  │                  │ Telepresence │            │
+│  │   Service    │                  │     CLI      │            │
+│  └──────┬───────┘                  └──────────────┘            │
+│         │                                                        │
 └─────────┼────────────────────────────────────────────────────────┘
           │
           ▼
-┌─────────────────────┐     ┌─────────────────────┐
-│   Telepresence CLI  │     │      kubectl        │
-│  (connect, quit,    │     │  (namespaces,       │
-│   intercept, list)  │     │   deployments,      │
-└─────────────────────┘     │   services)         │
-                            └─────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     Kubernetes API Server                        │
+│  (namespaces, deployments, services - via @kubernetes/client)   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Component Responsibilities
@@ -120,7 +126,8 @@ telepresence-ext/
 | Component | Responsibility |
 |-----------|---------------|
 | `extension.ts` | Entry point, command registration, lifecycle management |
-| `telepresenceService.ts` | All Telepresence CLI interactions |
+| `telepresenceService.ts` | Telepresence CLI interactions |
+| `kubernetesService.ts` | Kubernetes API calls (namespaces, deployments, services) |
 | `settingsManager.ts` | Configuration persistence and retrieval |
 | `interceptsProvider.ts` | Intercepts sidebar tree view |
 | `statusProvider.ts` | Connection status sidebar tree view |
@@ -170,7 +177,7 @@ The main entry point that VS Code calls when the extension activates.
 
 ### 2. Telepresence Service (`telepresenceService.ts`)
 
-Core service that wraps all Telepresence CLI and kubectl interactions.
+Core service that wraps Telepresence CLI interactions and delegates Kubernetes API calls to KubernetesService.
 
 #### Interfaces
 
@@ -298,7 +305,6 @@ Centralized location for all hardcoded values.
 | `VIEWS` | View IDs | `telepresenceInterceptsView` |
 | `CONTEXT_VALUES` | Tree item contexts | `intercept`, `detail` |
 | `CLI` | CLI commands | `telepresence connect` |
-| `KUBECTL` | kubectl commands | `kubectl get namespaces` |
 | `SETTINGS` | Setting keys | `httpHeaderName` |
 | `DEFAULTS` | Default values | `5` (polling interval) |
 | `COLORS` | Theme colors | `testing.iconPassed` |
@@ -317,7 +323,7 @@ Centralized location for all hardcoded values.
 User clicks "Connect to Cluster"
     │
     ▼
-Expand to show namespace list (fetched from kubectl)
+Expand to show namespace list (fetched from Kubernetes API)
     │
     ▼
 User selects namespace
@@ -345,13 +351,13 @@ Personal intercepts use HTTP headers to route only specific requests to your loc
 User clicks "Create Intercept"
     │
     ▼
-Show deployment list (from kubectl)
+Show deployment list (from Kubernetes API)
     │
     ▼
 User selects deployment
     │
     ▼
-Fetch service ports (kubectl get service -o json)
+Fetch service ports (via Kubernetes API)
     │
     ▼
 Ask: Use default local port? (targetPort from service)
@@ -536,7 +542,7 @@ Editable settings:
                 │
                 ▼
 ┌─────────────────────────────────────────────────────┐
-│ 1. getNamespaces() ──▶ kubectl get namespaces       │
+│ 1. getNamespaces() ──▶ Kubernetes API               │
 │ 2. Show namespace picker                            │
 │ 3. connect(namespace) ──▶ telepresence connect ...  │
 │ 4. checkStatus() ──▶ telepresence status            │
@@ -555,9 +561,9 @@ Editable settings:
      ▼
 ┌─────────────────────────────────────────────────────────┐
 │ 1. Check if connected                                   │
-│ 2. getDeployments() ──▶ kubectl get deployments         │
+│ 2. getDeployments() ──▶ Kubernetes API                  │
 │ 3. User selects deployment                              │
-│ 4. getServicePorts() ──▶ kubectl get service -o json    │
+│ 4. getServicePorts() ──▶ Kubernetes API                 │
 │ 5. User confirms ports                                  │
 │ 6. getHeaderForService() ──▶ Check settings/overrides   │
 │ 7. createIntercept() ──▶ telepresence intercept ...     │
@@ -610,7 +616,7 @@ PATTERNS = {
 - npm
 - VS Code or Cursor
 - Telepresence CLI installed
-- kubectl configured with cluster access
+- Kubernetes cluster access (via kubeconfig)
 
 ### Setup
 
@@ -673,7 +679,7 @@ vsce package
 | Issue | Solution |
 |-------|----------|
 | "Not connected" shown when connected | Check `telepresence status` output format |
-| Namespaces not loading | Verify kubectl access: `kubectl get namespaces` |
+| Namespaces not loading | Verify kubeconfig is properly configured |
 | Intercept fails | Check Traffic Manager: `telepresence helm install` |
 | Settings not saving | Check global storage permissions |
 
@@ -686,9 +692,8 @@ telepresence status
 # List intercepts
 telepresence list --intercepts
 
-# Check kubectl access
-kubectl get namespaces
-kubectl get deployments -n <namespace>
+# Check cluster access
+
 ```
 
 ---

@@ -58,14 +58,6 @@ export const CLI = {
     INTERCEPT: 'telepresence intercept',
 } as const;
 
-// =============================================================================
-// KUBECTL COMMANDS
-// =============================================================================
-export const KUBECTL = {
-    GET_NAMESPACES: 'kubectl get namespaces -o jsonpath="{.items[*].metadata.name}"',
-    GET_DEPLOYMENTS: 'kubectl get deployments',
-    GET_SERVICE: 'kubectl get service',
-} as const;
 
 // =============================================================================
 // SETTINGS KEYS

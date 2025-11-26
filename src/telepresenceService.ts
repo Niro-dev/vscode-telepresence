@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logger } from './logger';
-import { CLI, KUBECTL, DEFAULTS, PATTERNS, SETTINGS } from './constants';
+import { CLI, DEFAULTS, PATTERNS, SETTINGS } from './constants';
+import { KubernetesService } from './kubernetesService';
 
 const execAsync = promisify(exec);
 
@@ -32,8 +33,13 @@ export class TelepresenceService {
     private connectionStatus: ConnectionStatus = { connected: false };
     private intercepts: Intercept[] = [];
     private statusChangeEmitter = new vscode.EventEmitter<void>();
+    private k8sService: KubernetesService;
 
     public readonly onStatusChange = this.statusChangeEmitter.event;
+
+    constructor() {
+        this.k8sService = new KubernetesService();
+    }
 
     async checkStatus(): Promise<ConnectionStatus> {
         logger.debug('Checking telepresence status...');
@@ -102,75 +108,17 @@ export class TelepresenceService {
     }
 
     async getNamespaces(): Promise<string[]> {
-        logger.debug('Fetching namespaces...');
-        
-        try {
-            const { stdout } = await execAsync(KUBECTL.GET_NAMESPACES);
-            const namespaces = stdout.trim().split(/\s+/).filter(ns => ns.length > 0);
-            logger.debug(`Found ${namespaces.length} namespaces`);
-            return namespaces;
-        } catch (error: any) {
-            logger.error('Failed to get namespaces', error);
-            return [];
-        }
+        return await this.k8sService.getNamespaces();
     }
 
     async getDeployments(namespace?: string): Promise<string[]> {
-        logger.debug(`Fetching deployments${namespace ? ` in namespace ${namespace}` : ''}...`);
-        
-        try {
-            const nsFlag = namespace ? ` -n ${namespace}` : '';
-            const command = `${KUBECTL.GET_DEPLOYMENTS}${nsFlag} -o jsonpath="{.items[*].metadata.name}"`;
-            
-            const { stdout } = await execAsync(command);
-            const deployments = stdout.trim().split(/\s+/).filter(d => d.length > 0);
-            logger.debug(`Found ${deployments.length} deployments`);
-            return deployments;
-        } catch (error: any) {
-            logger.error('Failed to get deployments', error);
-            return [];
-        }
+        const ns = namespace || this.k8sService.getCurrentNamespace() || 'default';
+        return await this.k8sService.getDeployments(ns);
     }
 
     async getServicePorts(serviceName: string, namespace?: string): Promise<{ servicePort: number; targetPort: number } | undefined> {
-        logger.debug(`Fetching ports for service ${serviceName}...`);
-        
-        try {
-            const nsFlag = namespace ? ` -n ${namespace}` : '';
-            const command = `${KUBECTL.GET_SERVICE} ${serviceName}${nsFlag} -o json`;
-            
-            const { stdout } = await execAsync(command);
-            const serviceData = JSON.parse(stdout);
-            
-            if (!serviceData.spec?.ports?.length) {
-                logger.warn('No ports found in service spec');
-                return undefined;
-            }
-            
-            const portSpec = serviceData.spec.ports[0];
-            const servicePort = portSpec.port;
-            let targetPort = portSpec.targetPort;
-            
-            if (typeof targetPort === 'string') {
-                logger.warn('Target port is a named port, cannot resolve automatically');
-                return undefined;
-            }
-            
-            const sp = Number(servicePort);
-            const tp = Number(targetPort);
-            
-            if (isNaN(sp) || isNaN(tp)) {
-                logger.error('Invalid port numbers', { servicePort, targetPort });
-                return undefined;
-            }
-            
-            logger.debug(`Service ports: ${sp} -> ${tp}`);
-            return { servicePort: sp, targetPort: tp };
-
-        } catch (error: any) {
-            logger.error('Failed to get service ports', error);
-            return undefined;
-        }
+        const ns = namespace || this.k8sService.getCurrentNamespace() || 'default';
+        return await this.k8sService.getServicePorts(serviceName, ns);
     }
 
     async connect(namespace?: string): Promise<OperationResult> {

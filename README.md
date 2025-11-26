@@ -58,10 +58,10 @@ CONNECTION                    INTERCEPTS
    telepresence version
    ```
 
-2. **kubectl** configured with cluster access
-   ```bash
-   kubectl get namespaces
-   ```
+2. **Kubernetes cluster access** configured via kubeconfig
+   - The extension uses the Kubernetes API directly (no kubectl required!)
+   - Make sure your `~/.kube/config` is properly configured
+   - Test access: `kubectl cluster-info` or any kubectl command
 
 3. **Traffic Manager** installed in cluster
    ```bash
@@ -193,8 +193,11 @@ telepresence quit
 ### Namespace list is empty
 
 ```bash
-# Verify kubectl access
-kubectl get namespaces
+# Verify cluster access via kubeconfig
+kubectl cluster-info
+# Or check your kubeconfig
+echo $KUBECONFIG  # Linux/Mac
+echo $env:KUBECONFIG  # Windows PowerShell
 ```
 
 ### "Traffic Manager not found"

@@ -186,7 +186,7 @@ export class StatusProvider implements vscode.TreeDataProvider<StatusItem> {
         } else {
             const noNsItem = new StatusItem(
                 MESSAGES.NO_NAMESPACES,
-                'Use default or check kubectl',
+                'Use default or check cluster access',
                 vscode.TreeItemCollapsibleState.None,
                 new vscode.ThemeIcon(ICONS.WARNING)
             );
