@@ -90,6 +90,96 @@ export class KubernetesService {
         }
     }
 
+    async getDeploymentEnvironment(deploymentName: string, namespace: string): Promise<Record<string, string>> {
+        logger.debug(`Fetching environment for deployment ${deploymentName} in ${namespace}...`);
+        
+        try {
+            const response = await this.appsApi.readNamespacedDeployment({ name: deploymentName, namespace });
+            const deployment: any = response;
+            
+            // Assuming the first container is the main one
+            const container = deployment.spec?.template?.spec?.containers?.[0];
+            
+            if (!container) {
+                logger.warn('No containers found in deployment spec');
+                return {};
+            }
+            
+            const envVars: Record<string, string> = {};
+
+            // 1. Process envFrom (ConfigMaps and Secrets)
+            if (container.envFrom) {
+                for (const source of container.envFrom) {
+                    if (source.configMapRef) {
+                        const cmName = source.configMapRef.name;
+                        try {
+                            const cm: any = await this.k8sApi.readNamespacedConfigMap({ name: cmName, namespace });
+                            if (cm.data) {
+                                Object.assign(envVars, cm.data);
+                            }
+                        } catch (err) {
+                            logger.warn(`Failed to fetch ConfigMap ${cmName}`, err);
+                        }
+                    } else if (source.secretRef) {
+                        const secretName = source.secretRef.name;
+                        try {
+                            const secret: any = await this.k8sApi.readNamespacedSecret({ name: secretName, namespace });
+                            if (secret.data) {
+                                for (const [key, value] of Object.entries(secret.data)) {
+                                    // Secrets are base64 encoded
+                                    envVars[key] = Buffer.from(value as string, 'base64').toString('utf-8');
+                                }
+                            }
+                        } catch (err) {
+                            logger.warn(`Failed to fetch Secret ${secretName}`, err);
+                        }
+                    }
+                }
+            }
+
+            // 2. Process env (Direct variables and references)
+            if (container.env) {
+                for (const envVar of container.env) {
+                    if (envVar.value !== undefined) {
+                        envVars[envVar.name] = envVar.value;
+                    } else if (envVar.valueFrom) {
+                        // Handle valueFrom (ConfigMapKeyRef, SecretKeyRef)
+                         if (envVar.valueFrom.configMapKeyRef) {
+                             const cmName = envVar.valueFrom.configMapKeyRef.name;
+                             const key = envVar.valueFrom.configMapKeyRef.key;
+                             try {
+                                 const cm: any = await this.k8sApi.readNamespacedConfigMap({ name: cmName, namespace });
+                                 if (cm.data && cm.data[key]) {
+                                     envVars[envVar.name] = cm.data[key];
+                                 }
+                             } catch (err) {
+                                logger.warn(`Failed to fetch ConfigMap key ${key} from ${cmName}`, err);
+                             }
+                         } else if (envVar.valueFrom.secretKeyRef) {
+                             const secretName = envVar.valueFrom.secretKeyRef.name;
+                             const key = envVar.valueFrom.secretKeyRef.key;
+                             try {
+                                 const secret: any = await this.k8sApi.readNamespacedSecret({ name: secretName, namespace });
+                                 if (secret.data && secret.data[key]) {
+                                     envVars[envVar.name] = Buffer.from(secret.data[key], 'base64').toString('utf-8');
+                                 }
+                             } catch (err) {
+                                logger.warn(`Failed to fetch Secret key ${key} from ${secretName}`, err);
+                             }
+                         }
+                    }
+                }
+            }
+
+            logger.debug(`Resolved ${Object.keys(envVars).length} environment variables`);
+            return envVars;
+
+        } catch (error: any) {
+            logger.error('Failed to get deployment environment', error);
+            return {};
+        }
+    }
+
     getCurrentContext(): string | null {
         return this.kc.getCurrentContext();
     }
