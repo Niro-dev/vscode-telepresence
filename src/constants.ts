@@ -21,6 +21,11 @@ export const COMMANDS = {
     CONNECT_TO_NAMESPACE: 'telepresence.connectToNamespace',
     SHOW_INTERCEPT_DETAILS: 'telepresence.showInterceptDetails',
     DEBUG_STATUS: 'telepresence.debugStatus',
+    ADD_APPLICATION: 'telepresence.addApplication',
+    REMOVE_APPLICATION: 'telepresence.removeApplication',
+    CONFIGURE_APPLICATION: 'telepresence.configureApplication',
+    RUN_APPLICATION: 'telepresence.runApplication',
+    EXTRACT_ENV: 'telepresence.extractEnv',
 } as const;
 
 // =============================================================================
@@ -29,6 +34,7 @@ export const COMMANDS = {
 export const VIEWS = {
     INTERCEPTS: 'telepresenceInterceptsView',
     STATUS: 'telepresenceStatusView',
+    APPLICATIONS: 'telepresenceApplicationsView',
 } as const;
 
 // =============================================================================
@@ -124,6 +130,11 @@ export const ICONS = {
     LAYERS: 'layers',
     ARROW_SWAP: 'arrow-swap',
     HOME: 'home',
+    RUN: 'play',
+    SAVE: 'save',
+    FILE: 'file',
+    CODE: 'code',
+    TERMINAL: 'terminal',
 } as const;
 
 // =============================================================================
@@ -165,6 +176,13 @@ export const MESSAGES = {
     CLICK_TO_ADD: 'Click to add a new intercept',
     DEFAULT_NAMESPACE: 'Default Namespace',
     USE_KUBECONFIG_DEFAULT: 'Use kubeconfig default',
+    NO_APPLICATIONS: 'No pinned applications',
+    SELECT_APPLICATION_FILE: 'Select the file to start the application',
+    APP_ADDED: 'Application added',
+    APP_REMOVED: 'Application removed',
+    ENV_EXTRACTED: 'Environment variables extracted',
+    CONFIGURING_APP: 'Configuring application',
+    EXTRACTING_ENV: 'Extracting environment variables',
 } as const;
 
 // =============================================================================

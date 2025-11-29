@@ -98,6 +98,31 @@
         "command": "telepresence.openSettings",
         "title": "Telepresence: Open Settings",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "telepresence.addApplication",
+        "title": "Add Application",
+        "icon": "$(add)"
+      },
+      {
+        "command": "telepresence.removeApplication",
+        "title": "Remove Application",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "telepresence.configureApplication",
+        "title": "Configure Application",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "telepresence.runApplication",
+        "title": "Run Application",
+        "icon": "$(play)"
+      },
+      {
+        "command": "telepresence.extractEnv",
+        "title": "Extract Environment",
+        "icon": "$(save)"
       }
     ],
     "viewsContainers": {
@@ -118,6 +143,10 @@
         {
           "id": "telepresenceInterceptsView",
           "name": "Intercepts"
+        },
+        {
+          "id": "telepresenceApplicationsView",
+          "name": "Applications"
         }
       ]
     },
@@ -147,6 +176,11 @@
           "command": "telepresence.refreshIntercepts",
           "when": "view == telepresenceInterceptsView",
           "group": "navigation"
+        },
+        {
+          "command": "telepresence.addApplication",
+          "when": "view == telepresenceApplicationsView",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -154,6 +188,31 @@
           "command": "telepresence.removeIntercept",
           "when": "view == telepresenceInterceptsView && viewItem == intercept",
           "group": "inline"
+        },
+        {
+          "command": "telepresence.runApplication",
+          "when": "view == telepresenceApplicationsView && viewItem == application",
+          "group": "inline@1"
+        },
+        {
+          "command": "telepresence.extractEnv",
+          "when": "view == telepresenceApplicationsView && viewItem == application",
+          "group": "inline@2"
+        },
+        {
+          "command": "telepresence.createIntercept",
+          "when": "view == telepresenceApplicationsView && viewItem == application",
+          "group": "inline@3"
+        },
+        {
+          "command": "telepresence.configureApplication",
+          "when": "view == telepresenceApplicationsView && viewItem == application",
+          "group": "modification"
+        },
+        {
+          "command": "telepresence.removeApplication",
+          "when": "view == telepresenceApplicationsView && viewItem == application",
+          "group": "modification"
         }
       ]
     },

@@ -33,7 +33,7 @@ export class TelepresenceService {
     private connectionStatus: ConnectionStatus = { connected: false };
     private intercepts: Intercept[] = [];
     private statusChangeEmitter = new vscode.EventEmitter<void>();
-    private k8sService: KubernetesService;
+    public readonly k8sService: KubernetesService;
 
     public readonly onStatusChange = this.statusChangeEmitter.event;
 
@@ -72,13 +72,17 @@ export class TelepresenceService {
                 const contextMatch = stdout.match(PATTERNS.KUBERNETES_CONTEXT);
                 if (contextMatch) {
                     const ctx = contextMatch[1].trim();
-                    if (ctx) context = ctx;
+                    if (ctx) {
+                        context = ctx;
+                    }
                 }
 
                 const namespaceMatch = stdout.match(PATTERNS.NAMESPACE);
                 if (namespaceMatch) {
                     const ns = namespaceMatch[1].trim();
-                    if (ns) namespace = ns;
+                    if (ns) {
+                        namespace = ns;
+                    }
                 }
             }
 
@@ -276,7 +280,9 @@ export class TelepresenceService {
             const serviceName = deploymentSections[i];
             const details = deploymentSections[i + 1];
             
-            if (!details) continue;
+            if (!details) {
+                continue;
+            }
             
             const nameMatch = details.match(PATTERNS.INTERCEPT_NAME);
             const interceptName = nameMatch ? nameMatch[1] : serviceName;

@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { TelepresenceService } from './telepresenceService';
 import { InterceptsProvider } from './views/interceptsProvider';
 import { StatusProvider } from './views/statusProvider';
+import { ApplicationsProvider, ApplicationItem } from './views/applicationsProvider';
+import { ApplicationService, Application } from './applicationService';
 import { DashboardPanel } from './views/dashboardPanel';
 import { SettingsPanel } from './views/settingsPanel';
 import { SettingsManager } from './settingsManager';
@@ -12,6 +14,8 @@ let telepresenceService: TelepresenceService;
 let statusBarItem: vscode.StatusBarItem;
 let statusProvider: StatusProvider;
 let interceptsProvider: InterceptsProvider;
+let applicationsProvider: ApplicationsProvider;
+let applicationService: ApplicationService;
 let statusPollingInterval: NodeJS.Timeout | undefined;
 let settingsManager: SettingsManager;
 
@@ -31,6 +35,7 @@ export function activate(context: vscode.ExtensionContext): void {
 function initializeServices(context: vscode.ExtensionContext): void {
     telepresenceService = new TelepresenceService();
     settingsManager = new SettingsManager(context);
+    applicationService = new ApplicationService(context, telepresenceService.k8sService);
 }
 
 function initializeStatusBar(context: vscode.ExtensionContext): void {
@@ -44,16 +49,17 @@ function initializeStatusBar(context: vscode.ExtensionContext): void {
 function initializeTreeViews(): void {
     interceptsProvider = new InterceptsProvider(telepresenceService);
     statusProvider = new StatusProvider(telepresenceService);
+    applicationsProvider = new ApplicationsProvider(applicationService);
 
     vscode.window.registerTreeDataProvider(VIEWS.INTERCEPTS, interceptsProvider);
     vscode.window.registerTreeDataProvider(VIEWS.STATUS, statusProvider);
+    vscode.window.registerTreeDataProvider(VIEWS.APPLICATIONS, applicationsProvider);
 }
 
 function registerCommands(context: vscode.ExtensionContext): void {
     const commands: Array<{ id: string; handler: (...args: any[]) => Promise<void> | void }> = [
         { id: COMMANDS.CONNECT, handler: handleConnect },
         { id: COMMANDS.DISCONNECT, handler: handleDisconnect },
-        { id: COMMANDS.CREATE_INTERCEPT, handler: handleCreateIntercept },
         { id: COMMANDS.LIST_INTERCEPTS, handler: handleListIntercepts },
         { id: COMMANDS.REMOVE_INTERCEPT, handler: handleRemoveIntercept },
         { id: COMMANDS.SHOW_INTERCEPT_DETAILS, handler: handleShowInterceptDetails },
@@ -65,6 +71,12 @@ function registerCommands(context: vscode.ExtensionContext): void {
         { id: COMMANDS.OPEN_SETTINGS_FILE, handler: () => settingsManager.openSettingsFile() },
         { id: COMMANDS.CONNECT_TO_NAMESPACE, handler: handleConnectToNamespace },
         { id: COMMANDS.DEBUG_STATUS, handler: handleDebugStatus },
+        { id: COMMANDS.ADD_APPLICATION, handler: handleAddApplication },
+        { id: COMMANDS.REMOVE_APPLICATION, handler: handleRemoveApplication },
+        { id: COMMANDS.CONFIGURE_APPLICATION, handler: handleConfigureApplication },
+        { id: COMMANDS.RUN_APPLICATION, handler: handleRunApplication },
+        { id: COMMANDS.EXTRACT_ENV, handler: handleExtractEnv },
+        { id: COMMANDS.CREATE_INTERCEPT, handler: handleCreateIntercept },
     ];
 
     for (const cmd of commands) {
@@ -231,7 +243,7 @@ async function handleDisconnect(): Promise<void> {
     }
 }
 
-async function handleCreateIntercept(): Promise<void> {
+async function handleCreateIntercept(item?: ApplicationItem): Promise<void> {
     const status = telepresenceService.getConnectionStatus();
     
     if (!status.connected) {
@@ -239,30 +251,43 @@ async function handleCreateIntercept(): Promise<void> {
         return;
     }
 
-    const deployments = await vscode.window.withProgress({
-        location: vscode.ProgressLocation.Notification,
-        title: MESSAGES.FETCHING_DEPLOYMENTS,
-        cancellable: false
-    }, () => telepresenceService.getDeployments(status.namespace));
+    let serviceName: string;
+    let namespace: string = status.namespace!;
 
-    if (deployments.length === 0) {
-        vscode.window.showErrorMessage(MESSAGES.NO_DEPLOYMENTS);
-        return;
+    if (item && item.app) {
+        // Case 1: Triggered from Application View
+        serviceName = item.app.deploymentName;
+        namespace = item.app.namespace;
+    } else {
+        // Case 2: Triggered from Command Palette or Intercepts View
+        const deployments = await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: MESSAGES.FETCHING_DEPLOYMENTS,
+            cancellable: false
+        }, () => telepresenceService.getDeployments(status.namespace));
+
+        if (deployments.length === 0) {
+            vscode.window.showErrorMessage(MESSAGES.NO_DEPLOYMENTS);
+            return;
+        }
+
+        const selectedDeployment = await vscode.window.showQuickPick(
+            deployments.map(d => ({ label: d, description: 'Deployment' })),
+            { placeHolder: MESSAGES.SELECT_DEPLOYMENT, title: 'Telepresence: Choose Deployment' }
+        );
+
+        if (!selectedDeployment) {
+            return;
+        }
+        serviceName = selectedDeployment.label;
     }
 
-    const selectedDeployment = await vscode.window.showQuickPick(
-        deployments.map(d => ({ label: d, description: 'Deployment' })),
-        { placeHolder: MESSAGES.SELECT_DEPLOYMENT, title: 'Telepresence: Choose Deployment' }
-    );
-
-    if (!selectedDeployment) return;
-    const serviceName = selectedDeployment.label;
-
+    // Common flow continues here...
     const ports = await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: MESSAGES.FETCHING_PORTS,
         cancellable: false
-    }, () => telepresenceService.getServicePorts(serviceName, status.namespace));
+    }, () => telepresenceService.getServicePorts(serviceName, namespace));
 
     let servicePort: number;
     let defaultLocalPort: number | undefined;
@@ -276,7 +301,9 @@ async function handleCreateIntercept(): Promise<void> {
             placeHolder: '443',
             validateInput: validatePort
         });
-        if (!portStr) return;
+        if (!portStr) {
+            return;
+        }
         servicePort = parseInt(portStr);
     }
 
@@ -285,7 +312,9 @@ async function handleCreateIntercept(): Promise<void> {
         { label: 'No', description: 'Specify manually', value: false }
     ], { placeHolder: MESSAGES.USE_DEFAULT_PORT, title: 'Telepresence: Local Port' });
 
-    if (!useDefault) return;
+    if (!useDefault) {
+        return;
+    }
 
     let localPort: number;
     if (useDefault.value) {
@@ -297,7 +326,9 @@ async function handleCreateIntercept(): Promise<void> {
             value: (defaultLocalPort || servicePort).toString(),
             validateInput: validatePort
         });
-        if (!portStr) return;
+        if (!portStr) {
+            return;
+        }
         localPort = parseInt(portStr);
     }
 
@@ -315,7 +346,9 @@ async function handleCreateIntercept(): Promise<void> {
                 placeHolder: 'your-username',
                 validateInput: v => (!v?.trim() ? 'Value required' : null)
             });
-            if (!headerValue) return;
+            if (!headerValue) {
+                return;
+            }
 
             httpHeader.value = headerValue;
             const config = vscode.workspace.getConfiguration(SETTINGS.CONFIG_SECTION);
@@ -364,7 +397,9 @@ async function handleRemoveIntercept(item?: any): Promise<void> {
             intercepts.map(i => ({ label: i.name, description: i.serviceName })),
             { placeHolder: 'Select intercept to remove' }
         );
-        if (!selected) return;
+        if (!selected) {
+            return;
+        }
         interceptName = selected.label;
     }
 
@@ -397,7 +432,9 @@ async function handleListIntercepts(): Promise<void> {
 }
 
 async function handleShowInterceptDetails(intercept: any): Promise<void> {
-    if (!intercept) return;
+    if (!intercept) {
+        return;
+    }
 
     const message = `Intercept: ${intercept.name}\n` +
                    `Service: ${intercept.serviceName}\n` +
@@ -455,7 +492,9 @@ async function handleConnectToNamespace(namespace?: string): Promise<void> {
         location: vscode.ProgressLocation.Notification,
         title: namespace ? `Connecting to namespace "${namespace}"...` : 'Connecting to default namespace...',
         cancellable: false
-    }, () => telepresenceService.connect(namespace));
+    }, () => {
+        return telepresenceService.connect(namespace);
+    });
 
     if (result.success) {
         await telepresenceService.checkStatus();
@@ -471,6 +510,167 @@ async function handleDebugStatus(): Promise<void> {
     vscode.window.showInformationMessage('Debug info logged to console', 'Open Output').then(selection => {
         if (selection === 'Open Output') {
             vscode.commands.executeCommand('workbench.action.output.toggleOutput');
+        }
+    });
+}
+
+async function handleAddApplication(): Promise<void> {
+    const status = telepresenceService.getConnectionStatus();
+    if (!status.connected) {
+        vscode.window.showWarningMessage(MESSAGES.PLEASE_CONNECT_FIRST);
+        return;
+    }
+
+    // 1. Select Deployment
+    const deployments = await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: MESSAGES.FETCHING_DEPLOYMENTS,
+        cancellable: false
+    }, () => telepresenceService.getDeployments(status.namespace));
+
+    if (deployments.length === 0) {
+        vscode.window.showErrorMessage(MESSAGES.NO_DEPLOYMENTS);
+        return;
+    }
+
+    const selectedDeployment = await vscode.window.showQuickPick(
+        deployments.map(d => ({ label: d, description: 'Deployment' })),
+        { placeHolder: 'Select deployment to pin', title: 'Add Application' }
+    );
+
+    if (!selectedDeployment) {
+        return;
+    }
+    const deploymentName = selectedDeployment.label;
+
+    // 2. Select Working Directory
+    const folders = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: 'Select Project Root',
+        title: `Select local project root for ${deploymentName}`
+    });
+
+    if (!folders || folders.length === 0) {
+        return;
+    }
+    const workingDirectory = folders[0].fsPath;
+
+    try {
+        await applicationService.addApplication(deploymentName, status.namespace || 'default', workingDirectory);
+        vscode.window.showInformationMessage(MESSAGES.APP_ADDED);
+    } catch (error: any) {
+        vscode.window.showErrorMessage(`Failed to add application: ${error.message}`);
+    }
+}
+
+async function handleRemoveApplication(item?: ApplicationItem): Promise<void> {
+    let app: Application | undefined;
+
+    if (item && item.app) {
+        app = item.app;
+    } else {
+        const apps = applicationService.getApplications();
+        if (apps.length === 0) {
+            vscode.window.showInformationMessage(MESSAGES.NO_APPLICATIONS || 'No applications to remove');
+            return;
+        }
+        
+        const selected = await vscode.window.showQuickPick(
+            apps.map(a => ({ label: a.name, description: a.namespace, app: a })),
+            { placeHolder: 'Select application to remove' }
+        );
+        
+        if (selected) {
+            app = selected.app;
+        }
+    }
+
+    if (!app) {
+        return;
+    }
+    
+    const confirm = await vscode.window.showWarningMessage(
+        `Are you sure you want to remove "${app.name}"?`,
+        'Yes', 'No'
+    );
+    
+    if (confirm !== 'Yes') {
+        return;
+    }
+
+    try {
+        await applicationService.removeApplication(app.id);
+        vscode.window.showInformationMessage(MESSAGES.APP_REMOVED);
+    } catch (error: any) {
+        vscode.window.showErrorMessage(`Failed to remove application: ${error.message}`);
+    }
+}
+
+async function handleConfigureApplication(item?: ApplicationItem): Promise<void> {
+    if (!item || !item.app) {
+        return;
+    }
+
+    // TODO: Implement more robust configuration (e.g. start file selection)
+    vscode.window.showInformationMessage(`Configuration for ${item.app.name} coming soon.`);
+}
+
+async function handleRunApplication(item?: ApplicationItem): Promise<void> {
+    if (!item || !item.app) {
+        return;
+    }
+
+    const commands = await applicationsProvider.detectRunCommands(item.app);
+    let commandToRun: string | undefined;
+
+    if (commands.length === 0) {
+        // Fallback or prompt
+        commandToRun = await vscode.window.showInputBox({
+            prompt: 'Enter command to run application',
+            placeHolder: 'e.g., npm start'
+        });
+    } else if (commands.length === 1) {
+        commandToRun = commands[0];
+    } else {
+        commandToRun = await vscode.window.showQuickPick(commands, {
+            placeHolder: 'Select run command'
+        });
+    }
+
+    if (!commandToRun) {
+        return;
+    }
+
+    const terminal = vscode.window.createTerminal({
+        name: `Telepresence: ${item.app.name}`,
+        cwd: item.app.workingDirectory
+    });
+    terminal.show();
+    terminal.sendText(commandToRun);
+}
+
+async function handleExtractEnv(item?: ApplicationItem): Promise<void> {
+    if (!item || !item.app) {
+        return;
+    }
+
+    const status = telepresenceService.getConnectionStatus();
+    if (!status.connected) {
+        vscode.window.showWarningMessage(MESSAGES.PLEASE_CONNECT_FIRST);
+        return;
+    }
+
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: MESSAGES.EXTRACTING_ENV,
+        cancellable: false
+    }, async () => {
+        try {
+            await applicationService.extractEnvironment(item.app!);
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Failed to extract environment: ${error.message}`);
         }
     });
 }
